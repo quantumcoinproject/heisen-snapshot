@@ -11,5 +11,11 @@
         public ulong StartDPBlockNumber { get; set; }
         public ulong CutOffDPBlockNumber { get; set; }
         public string OutputCsv { get; set; }
+
+        public string WebPageTemplate { get; set; }
+
+        public string RowTemplate { get; set; }
+
+        public string OutputHtml { get; set; }
     }
 }

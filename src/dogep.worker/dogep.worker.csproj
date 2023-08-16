@@ -22,4 +22,13 @@
     <ProjectReference Include="..\W3C\W3C.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="web\template-index.html">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="web\template-row.html">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
