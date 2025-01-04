@@ -21,7 +21,7 @@ namespace DP.Worker
         const string TEMPLATE_ADDRESS = "[ADDRESS]";
         const string TEMPLATE_TRUNCATED_ADDRESS = "[TRUNCATED_ADDRESS]";
         const string TEMPLATE_TOKENS = "[TOKENS]";
-        const string TEMPLATE_COINS = "[COINS]";
+        const string TEMPLATE_HEISEN = "[HEISEN]";
         const string TEMPLATE_ROWS = "[ROWS]";
         const string TOTAL_RECORDS = "[TOTAL_RECORDS]";
 
@@ -69,45 +69,57 @@ namespace DP.Worker
 
         private static async Task ParseTokenHolders(DogePSettings settings)
         {
+            Dictionary<string, AddressDetails> addressMap = new Dictionary<string, AddressDetails>();
+            addressMap[ZERO_ADDRESS] = new AddressDetails(ZERO_ADDRESS, System.Numerics.BigInteger.Parse(settings.TotalTokenSupplyWei));
             ulong fromBlock = settings.StartDPBlockNumber;
             ulong toBlock = settings.CutOffDPBlockNumber;
-            Console.WriteLine("ParseTokenHolders contract: " + settings.ContractAddress + " from: " + fromBlock + " to: " + toBlock);
 
-            var transferEventHandler = W3C.Configuration.Web.Eth.GetEvent<TransferEventDTO>(settings.ContractAddress);
-            var filterAllTransferEventsForContract = transferEventHandler.CreateFilterInput();
-            filterAllTransferEventsForContract.SetBlockRange(new BlockRange(fromBlock, toBlock));            
-            
-            var allTransferEventsForContract = await transferEventHandler.GetAllChangesAsync(filterAllTransferEventsForContract);
-            Console.WriteLine("ParseTokenHolders total transactions" + allTransferEventsForContract.Count);
-            Dictionary<string, AddressDetails> addressMap = new Dictionary<string, AddressDetails>();
-            addressMap[ZERO_ADDRESS] = new AddressDetails(ZERO_ADDRESS,System.Numerics.BigInteger.Parse(settings.TotalTokenSupplyWei));
-
-            foreach (var evt in allTransferEventsForContract)
+            ulong i = fromBlock;
+            while (i <= toBlock)
             {
-                //Console.WriteLine(evt.Event.From + "," + evt.Event.To + "," + evt.Event.Value);
-                if (addressMap.ContainsKey(evt.Event.From))
-                {
-                    AddressDetails details = addressMap[evt.Event.From];
-                    details.Balance = details.Balance - evt.Event.Value;
-
-                    addressMap[evt.Event.From] = details;
-                }
-                else
-                {
-                    //Console.WriteLine("New from address : " + evt.Event.From);
+                ulong j = i + 5000000;
+                if (j > toBlock) {
+                    j = toBlock;
                 }
 
-                if (addressMap.ContainsKey(evt.Event.To))
+                Console.WriteLine("ParseTokenHolders contract: " + settings.ContractAddress + " from: " + i + " to: " + j);
+
+                var transferEventHandler = W3C.Configuration.Web.Eth.GetEvent<TransferEventDTO>(settings.ContractAddress);
+                var filterAllTransferEventsForContract = transferEventHandler.CreateFilterInput();
+                filterAllTransferEventsForContract.SetBlockRange(new BlockRange(i, j));            
+            
+                var allTransferEventsForContract = await transferEventHandler.GetAllChangesAsync(filterAllTransferEventsForContract);
+                Console.WriteLine("ParseTokenHolders total transactions" + allTransferEventsForContract.Count);
+
+                foreach (var evt in allTransferEventsForContract)
                 {
-                    AddressDetails details = addressMap[evt.Event.To];
-                    details.Balance = details.Balance + evt.Event.Value;
-                    addressMap[evt.Event.To] = details;
+                    //Console.WriteLine(evt.Event.From + "," + evt.Event.To + "," + evt.Event.Value);
+                    if (addressMap.ContainsKey(evt.Event.From))
+                    {
+                        AddressDetails details = addressMap[evt.Event.From];
+                        details.Balance = details.Balance - evt.Event.Value;
+
+                        addressMap[evt.Event.From] = details;
+                    }
+                    else
+                    {
+                        //Console.WriteLine("New from address : " + evt.Event.From);
+                    }
+
+                    if (addressMap.ContainsKey(evt.Event.To))
+                    {
+                        AddressDetails details = addressMap[evt.Event.To];
+                        details.Balance = details.Balance + evt.Event.Value;
+                        addressMap[evt.Event.To] = details;
+                    }
+                    else
+                    {
+                        AddressDetails details = new AddressDetails(evt.Event.To, evt.Event.Value);
+                        addressMap.Add(evt.Event.To, details);
+                    }
                 }
-                else
-                {
-                    AddressDetails details = new AddressDetails(evt.Event.To, evt.Event.Value);
-                    addressMap.Add(evt.Event.To, details);
-                }
+
+                i = j + 1;
             }
 
             convertDPCoin(addressMap, settings);
@@ -123,13 +135,11 @@ namespace DP.Worker
                 var weiToken = kvp.Value.Balance;
                 var ethToken = ConvertW3C.FromWeiToBigDecimal(kvp.Value.Balance);
 
-                Nethereum.Util.BigDecimal dpCoin = ethToken * dpCoinPercentage;
-
                 CsvRow csvRow = new CsvRow(
                     address.ToString(),
                     weiToken.ToString(),
                     FormatNumber(ethToken),
-                    FormatNumber(dpCoin)
+                    FormatNumber(ethToken)
                 );
 
                 csvRows.Add(csvRow);
@@ -207,7 +217,7 @@ namespace DP.Worker
                         .Replace(TEMPLATE_ADDRESS, csvRow.Address)
                         .Replace(TEMPLATE_TRUNCATED_ADDRESS, csvRow.Address.Substring(0, 5) + "..." + csvRow.Address.Substring(csvRow.Address.Length - 5, 5))
                         .Replace(TEMPLATE_TOKENS, csvRow.TokenBalanceInEth)
-                        .Replace(TEMPLATE_COINS, csvRow.DPCoin);
+                        .Replace(TEMPLATE_HEISEN, csvRow.DPCoin);
 
                     rows.Append(htmlRow);
                     count = count + 1;
